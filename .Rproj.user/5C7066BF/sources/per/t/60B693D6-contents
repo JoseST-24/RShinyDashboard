@@ -1,0 +1,28 @@
+#Conexion a la base de datos
+conexionBD <- odbcConnect("ConexionSQLServer")
+sqlFetch(conexionBD, "cars")
+
+#Guardar datos de la base de datos en un data frame
+cars <- data.frame(sqlFetch(conexionBD, "cars"))
+View(cars)
+
+#Ejemplo de un mal modelo predictivo
+regresion_lineal <- lm(price ~ state + country , data = cars)
+summary(regresion_lineal)
+
+#Ejemplo de un buen modelo predictivo
+regresion_lineal2 <- lm(price ~ brand + model + year + title_status + millage +
+                         color, data = cars)
+summary(regresion_lineal2)
+
+#Realizando una prediccion
+Datos <- data.frame(brand="ford", model="door", year=2018, title_status="clean vehicle", 
+                    millage = 50000,color="black")
+predict(regresion_lineal2,Datos)
+
+#Grafica
+
+grafica = ggplot(cars, aes(millage,price))
+
+grafica + geom_point() + geom_smooth(method = "lm", colour="red")
+

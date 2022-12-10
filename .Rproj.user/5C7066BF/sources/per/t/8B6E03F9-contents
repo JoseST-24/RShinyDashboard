@@ -1,0 +1,32 @@
+#Ejercicio de Regresion Lineal
+
+#Paso 1: Importamos el archivo csv
+
+file.choose()
+
+fuenteDatos <- read.csv("C:\\Users\\Joset\\OneDrive - Universidad APEC - Académico\\DiplomadoCienciaDatos\\R\\ExamenFinal\\rentadebicis.csv")
+
+#Paso 2: Ver la fuente de datos
+resumenDeDatos <- summary(fuenteDatos)
+resumenDeDatos
+
+plot(fuenteDatos$temperatura,fuenteDatos$rentas_totales, main="Renta de bicicletas en funcion de la temperatura", xlab="Temperatura",ylab="TotalRentas")
+
+#Paso 3: Trabajando con regresion lineal
+
+regresion <- lm(rentas_totales ~ hora + dia + mes + año + estacion + dia_de_la_semana + asueto + sensacion_termica +
+                humedad + velocidad_del_viento, data= fuenteDatos)
+summary(regresion)
+
+#Paso 4: Analizar y modificar la regresion (en caso de ser necesario)
+
+regresion <- lm(rentas_totales ~ hora + mes + año + sensacion_termica +
+                  humedad + velocidad_del_viento, data= fuenteDatos)
+summary(regresion)
+
+
+#Paso 5: Construir el modelo de prediccion
+#Para construir el modelo predictivo se necesita una regresion lineal y un dataframe
+
+nuevosDatos <- data.frame(hora=12, mes=1, año=2013, sensacion_termica=24, humedad=62,velocidad_del_viento=13)
+predict(regresion,nuevosDatos)

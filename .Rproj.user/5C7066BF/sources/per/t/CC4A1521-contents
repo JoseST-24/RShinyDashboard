@@ -1,0 +1,190 @@
+---
+title: "Ejemplo4_AnalisisPred"
+author: "Jose Santos"
+date: "11/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+## Exploramiento de la data (Explore data)
+```{r}
+library(tidyverse)
+
+conexionBD <- odbcConnect("ConexionSQLServer")
+sqlFetch(conexionBD, "attendance")
+attendance <- data.frame(sqlFetch(conexionBD, "attendance"))
+standings <- data.frame(sqlFetch(conexionBD, "standings"))
+
+attendance_join <- attendance %>%
+  left_join(standings,
+            by = c("team", "team_name", "year"))
+```
+
+
+
+
+```{r}
+attendance_join %>%
+  filter(!is.na(weekly_attendance)) %>%
+  ggplot(aes(fct_reorder(team_name,weekly_attendance),
+             weekly_attendance,
+             fill =playoffs)) + 
+  geom_boxplot(outlier.alpha = 0.5) +
+  coord_flip()
+
+```
+
+
+
+```{r}
+attendance_join %>%
+  distinct(team_name, year, margin_of_victory, playoffs) %>%
+  ggplot(aes(margin_of_victory, fill = playoffs)) +
+  geom_histogram(position = "identity", alpha = 0.7)
+```
+
+```{r}
+attendance_join %>%
+  mutate(week = factor(week)) %>%
+  ggplot(aes(week, weekly_attendance, fill = week)) +
+  geom_boxplot(show.legend = FALSE, outlier.alpha = 0.5)
+```
+
+
+##Creacion del modelo
+```{r}
+attendance_diff <- attendance_join %>%
+  filter(!is.na(weekly_attendance)) %>%
+  select(weekly_attendance, team_name, year,        week,margin_of_victory,strength_of_schedule, 
+        playoffs) 
+
+
+```
+
+
+## Modelo de entranamiento (train model)
+```{r}
+install.packages("tidymodels")
+library(tidymodels)
+
+attendance_split <- attendance_diff %>%
+  initial_split(strata = playoffs)
+
+train_model <- training(attendance_split)
+test_model <- testing(attendance_split)
+
+
+```
+
+```{r}
+##especificamos el tipo de modelo (en este caso: modelo de regresion lineal)
+
+linearModel_spec <- linear_reg() %>%
+  set_engine(engine = "lm")
+
+linearModel_fit <- linearModel_spec %>%
+  fit(weekly_attendance ~ ., data = train_model)
+
+tidy(linearModel_fit)
+tidy(linearModel_fit) %>% arrange(-estimate)
+```
+
+```{r}
+##especificamos el tipo de modelo (en este caso: random forests model)
+
+randomForests_spec <- rand_forest(mode = "regression") %>%
+  set_engine("ranger")
+
+install.packages("ranger")
+library(ranger)
+
+randomForests_fit <- randomForests_spec %>% 
+  fit(weekly_attendance ~ ., 
+      data = train_model)
+```
+
+##Evaluacion de los modelos (evaluate model)
+```{r}
+results_train <- linearModel_fit %>%
+  predict(new_data = train_model) %>%
+  mutate(truth = train_model$weekly_attendance,
+         model = "lm") %>%
+  bind_rows(randomForests_fit %>% 
+              predict(new_data = train_model) %>%
+              mutate(truth = train_model$weekly_attendance,
+                     model ="rf"))
+
+results_train_dataframe <- data.frame(results_train)
+
+results_test <- linearModel_fit %>%
+  predict(new_data = test_model) %>%
+  mutate(truth = test_model$weekly_attendance,
+         model = "lm") %>%
+  bind_rows(randomForests_fit %>% 
+              predict(new_data = test_model) %>%
+              mutate(truth = test_model$weekly_attendance,
+                     model ="rf"))
+
+results_test_dataframe <- data.frame(results_test)
+
+
+```
+
+##Medicion del rendimiento (performance mesurament- score model)
+
+```{r}
+results_train %>%
+  group_by(model) %>%
+  rmse(truth = truth, estimate = .pred)
+
+results_test %>%
+  group_by(model) %>%
+  rmse(truth = truth, estimate = .pred)
+
+##visualizacion
+
+results_test %>%
+  mutate(train = "testing") %>%
+  bind_rows(results_train %>%
+    mutate(train = "training")) %>%
+  ggplot(aes(truth, .pred, color = model)) +
+  geom_abline(lty = 2, color = "gray80", size = 1.5) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(~train)
+```
+
+
+
+
+
+
+
+
